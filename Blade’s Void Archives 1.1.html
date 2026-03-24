@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPC SECURE TERMINAL (V18 - FULL DIVE)</title>
+    <style>
+        body { background: #0a0a0c; color: #fff; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 10px; }
+        .header { background: #1a1a24; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-bottom: 2px solid #ff0055; }
+        .gems { color: #00ffcc; text-shadow: 0 0 10px #00ffcc; font-size: 26px; font-weight: bold; }
+        
+        #stage { min-height: 250px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 20px; background: #111; border-radius: 10px; border: 1px solid #222; margin-bottom: 20px; }
+        
+        .pulled-img { width: 110px; height: 160px; object-fit: cover; border-radius: 8px; border: 2px solid #555; animation: popIn 0.3s ease-out; background: #000; cursor: pointer; transition: 0.2s; }
+        .pulled-img:hover { transform: scale(1.05); } 
+        
+        @keyframes popIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        /* RARITY EFFECTS */
+        .ur-card { border: 3px solid gold; box-shadow: 0 0 15px gold; }
+        
+        @keyframes wuwa-glow { 0% { border-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; } 50% { border-color: #9d50bb; box-shadow: 0 0 20px #9d50bb; } 100% { border-color: #00d2ff; box-shadow: 0 0 10px #00d2ff; } }
+        .wuwa-card { border: 3px solid #00d2ff; animation: wuwa-glow 1.5s infinite, popIn 0.3s ease-out; }
+
+        @keyframes degen-glitch { 0% { border-color: #ff0055; box-shadow: 0 0 15px #ff0055; } 50% { border-color: #8a2be2; box-shadow: 0 0 25px #8a2be2; } 100% { border-color: #ff0055; box-shadow: 0 0 15px #ff0055; } }
+        .degen-card { border: 3px solid #ff0055; animation: degen-glitch 1s infinite, popIn 0.3s ease-out; }
+
+        .btn { background: #e94560; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 8px; margin: 5px; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); }
+        .btn-10 { background: #0f3460; }
+        .btn-vault { background: #333; border: 1px solid #555; width: 90%; margin-top: 10px; }
+
+        #vault-menu { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 12, 0.98); overflow-y: auto; z-index: 100; padding-top: 20px; }
+        .vault-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 20px; }
+        .close-btn { background: #ff0055; width: 80%; margin-bottom: 15px; }
+
+        #lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); z-index: 999; justify-content: center; align-items: center; flex-direction: column; }
+        .lb-content { max-width: 95%; max-height: 80vh; border-radius: 10px; border: 3px solid #00ffcc; box-shadow: 0 0 30px rgba(0, 255, 204, 0.5); object-fit: contain; }
+        .lb-close-btn { margin-top: 20px; background: #ff0055; color: white; border: none; padding: 10px 30px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="gems">💎 <span id="gemCount">99999999</span></div>
+        <div style="color: #ff0055; font-size: 12px; margin-top: 5px; font-weight: bold;">ACCESS GRANTED: [BLADE ONLY]</div>
+        <div style="color: #888; font-size: 14px; margin-top: 10px;">Total Pulled: <span id="total-count">0</span></div>
+    </div>
+
+    <div id="stage">
+        <h3 style="color: #444; width: 100%; align-self: center;">Ready for the 10-Pull, Boss?</h3>
+    </div>
+
+    <div>
+        <button class="btn" onclick="summon(1)">SUMMON 1x</button>
+        <button class="btn btn-10" onclick="summon(10)">SUMMON 10x</button>
+    </div>
+    <button class="btn btn-vault" onclick="toggleVault(true)">📂 OPEN VAULT</button>
+
+    <div id="vault-menu">
+        <button class="btn close-btn" onclick="toggleVault(false)">❌ CLOSE VAULT</button>
+        <h2 style="color: #ff0055;">Classified Archives</h2>
+        <div class="vault-grid" id="vault-grid"></div>
+    </div>
+
+    <div id="lightbox">
+        <div id="lb-container"></div>
+        <button class="lb-close-btn" onclick="closeLightbox()">RETURN</button>
+    </div>
+
+    <script>
+        // ⬇️ THE WUWA POOL (Stacked with your new finds!) ⬇️
+        const wuwaPool = [
+            "https://pixiv.cat/142550611.png", 
+            "https://files.catbox.moe/ju6sse.mp4",
+            "https://files.catbox.moe/4wmwmx.mp4",
+            "https://files.catbox.moe/lzhtb0.mp4",
+            "https://files.catbox.moe/4mrx4j.mp4", // NEW
+            "https://files.catbox.moe/iq5sum.mp4"  // NEW
+        ];
+
+        let gems = 99999999;
+        let vault = JSON.parse(localStorage.getItem('myVaultV18')) || [];
+        
+        if(document.getElementById('total-count')) {
+            document.getElementById('total-count').innerText = vault.length;
+        }
+
+        async function summon(count) {
+            const stage = document.getElementById('stage');
+            stage.innerHTML = `<h3 style="color: #ff0055; width: 100%;">📡 BREACHING ABYSS...</h3>`;
+            
+            let currentPullsHtml = "";
+            let newPulls = [];
+
+            for(let i=0; i<count; i++) {
+                let roll = Math.random();
+                let isDegen = false; let isUR = false; let isWuwa = false;
+                let finalUrl = '';
+
+                if (roll < 0.05) { 
+                    isDegen = true; 
+                    finalUrl = await fetchAPI('nsfw/waifu');
+                } else if (roll < 0.06) { 
+                    isUR = true; 
+                    finalUrl = await fetchAPI('sfw/neko');
+                } else if (roll < 0.20) { 
+                    isWuwa = true;
+                    finalUrl = wuwaPool[Math.floor(Math.random() * wuwaPool.length)];
+                } else { 
+                    finalUrl = await fetchAPI('sfw/waifu');
+                }
+                
+                let cssClass = 'pulled-img';
+                if (isDegen) cssClass += ' degen-card';
+                else if (isUR) cssClass += ' ur-card';
+                else if (isWuwa) cssClass += ' wuwa-card';
+
+                let isVideo = finalUrl.toLowerCase().endsWith('.mp4') || finalUrl.toLowerCase().endsWith('.webm');
+                let clickEvent = `onclick="openLightbox('${finalUrl}', ${isVideo})"`;
+                
+                if (isVideo) {
+                    currentPullsHtml += `<video src="${finalUrl}" class="${cssClass}" autoplay loop muted playsinline ${clickEvent}></video>`;
+                } else {
+                    currentPullsHtml += `<img src="${finalUrl}" class="${cssClass}" ${clickEvent}>`;
+                }
+
+                newPulls.push({url: finalUrl, rare: isUR, degen: isDegen, wuwa: isWuwa});
+            }
+
+            stage.innerHTML = currentPullsHtml;
+            vault = vault.concat(newPulls);
+            localStorage.setItem('myVaultV18', JSON.stringify(vault));
+            
+            if(document.getElementById('total-count')) {
+                document.getElementById('total-count').innerText = vault.length;
+            }
+        }
+
+        async function fetchAPI(type) {
+            try {
+                let res = await fetch('https://api.waifu.pics/' + type);
+                let data = await res.json();
+                return data.url;
+            } catch(e) { return "https://via.placeholder.com/110x160?text=Uplink+Lost"; }
+        }
+
+        function toggleVault(show) {
+            const menu = document.getElementById('vault-menu');
+            const grid = document.getElementById('vault-grid');
+            if (show) {
+                grid.innerHTML = vault.map(item => {
+                    let css = 'pulled-img';
+                    if (item.degen) css += ' degen-card';
+                    else if (item.rare) css += ' ur-card';
+                    else if (item.wuwa) css += ' wuwa-card';
+                    
+                    let isVid = item.url.toLowerCase().endsWith('.mp4') || item.url.toLowerCase().endsWith('.webm');
+                    let clickEvent = `onclick="openLightbox('${item.url}', ${isVid})"`;
+                    
+                    if (isVid) {
+                        return `<video src="${item.url}" class="${css}" autoplay loop muted playsinline ${clickEvent}></video>`;
+                    } else {
+                        return `<img src="${item.url}" class="${css}" loading="lazy" ${clickEvent}>`;
+                    }
+                }).reverse().join('');
+                menu.style.display = 'block';
+            } else { menu.style.display = 'none'; }
+        }
+
+        function openLightbox(url, isVideo) {
+            const lb = document.getElementById('lightbox');
+            const container = document.getElementById('lb-container');
+            
+            if(isVideo) {
+                container.innerHTML = `<video src="${url}" class="lb-content" controls autoplay playsinline></video>`;
+            } else {
+                container.innerHTML = `<img src="${url}" class="lb-content">`;
+            }
+            lb.style.display = 'flex';
+        }
+
+        function closeLightbox() {
+            const lb = document.getElementById('lightbox');
+            document.getElementById('lb-container').innerHTML = ''; 
+            lb.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
